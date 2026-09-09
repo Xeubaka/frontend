@@ -17,12 +17,19 @@ const PIECE_UNICODE = {
 
 let chess = new Chess();
 let selectedSquare = null;
+// Guards against two rapid clicks racing: once a move has been emitted,
+// board clicks are ignored until the server authoritatively resolves it
+// (a fresh "game-state" broadcast) or rejects it ("move-rejected") — the
+// local `chess` instance isn't optimistically mutated, so accepting more
+// clicks in between would build a second move against the same stale FEN.
+let moveInFlight = false;
 
 // game-service socket. Path matches the nginx strip-prefix rule.
 const gameSocket = io("/", { path: "/socket/game/socket.io/" });
 gameSocket.emit("join-room", { roomId, color: myColor, name: playerName });
 
 gameSocket.on("game-state", (state) => {
+  moveInFlight = false;
   chess.load(state.fen);
   renderBoard();
   document.getElementById("status").textContent =
@@ -34,6 +41,7 @@ gameSocket.on("game-state", (state) => {
 });
 
 gameSocket.on("move-rejected", ({ reason }) => {
+  moveInFlight = false;
   document.getElementById("moveError").textContent = `Illegal move: ${reason}`;
   setTimeout(() => (document.getElementById("moveError").textContent = ""), 2000);
 });
@@ -75,6 +83,7 @@ function renderBoard() {
 
 function onSquareClick(squareName) {
   if (myColor !== "white" && myColor !== "black") return; // spectators can't move
+  if (moveInFlight) return; // a previous click's move is still awaiting server resolution
 
   if (!selectedSquare) {
     const piece = chess.get(squareName);
@@ -100,11 +109,13 @@ function onSquareClick(squareName) {
   if (promotionMove) {
     renderBoard();
     showPromotionPicker((piece) => {
+      moveInFlight = true;
       gameSocket.emit("move", { roomId, from, to: squareName, promotion: piece });
     });
     return;
   }
 
+  moveInFlight = true;
   gameSocket.emit("move", { roomId, from, to: squareName, promotion: "q" });
   renderBoard();
 }
