@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Chess Platform</title>
+<link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <main class="landing">
+    <h1>♟ Chess Platform</h1>
+    <p>Learning-project multiplayer chess. Create a room and send the code to a friend.</p>
+
+    <section class="card">
+      <h2>Create a room</h2>
+      <input id="createName" placeholder="Your name" />
+      <button id="createBtn">Create room</button>
+      <p id="createResult"></p>
+    </section>
+
+    <section class="card">
+      <h2>Join a room</h2>
+      <input id="joinCode" placeholder="Room code" />
+      <input id="joinName" placeholder="Your name" />
+      <button id="joinBtn">Join room</button>
+      <p id="joinError" class="error"></p>
+    </section>
+  </main>
+  <script src="js/lobby.js"></script>
+</body>
+</html>

@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Chess Platform — Room</title>
+<link rel="stylesheet" href="css/style.css" />
+<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/1.0.0-beta.8/chess.min.js"></script>
+</head>
+<body>
+  <main class="game-layout">
+    <section class="board-panel">
+      <h2 id="roomTitle">Room</h2>
+      <p id="status"></p>
+      <p>Win probability</p>
+      <div class="prob-bar">
+        <div id="whiteProb" class="prob-white">50%</div>
+        <div id="blackProb" class="prob-black">50%</div>
+      </div>
+      <div id="board" class="board"></div>
+      <p id="moveError" class="error"></p>
+    </section>
+
+    <aside class="side-panel">
+      <div class="panel-block">
+        <h3>Move log</h3>
+        <ol id="moveLog"></ol>
+      </div>
+      <div class="panel-block chat-block">
+        <h3>Chat</h3>
+        <div id="chatMessages" class="chat-messages"></div>
+        <div class="chat-input-row">
+          <input id="chatInput" placeholder="Say something..." />
+          <button id="chatSend">Send</button>
+        </div>
+      </div>
+    </aside>
+  </main>
+  <script src="js/game.js"></script>
+</body>
+</html>
