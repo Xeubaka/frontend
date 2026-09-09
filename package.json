@@ -1,0 +1,12 @@
+{
+  "name": "chess-platform-frontend",
+  "private": true,
+  "type": "module",
+  "description": "Static lobby/room UI. No build step by design — see PROJECT_PLAN.md. live-server is dev-only tooling for local iteration; the Dockerfile still uses `serve` for the actual served image.",
+  "scripts": {
+    "dev": "live-server --port=8081 --no-browser --watch=."
+  },
+  "devDependencies": {
+    "live-server": "^1.2.2"
+  }
+}

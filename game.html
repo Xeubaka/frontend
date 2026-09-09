@@ -5,7 +5,10 @@
 <title>Chess Platform — Room</title>
 <link rel="stylesheet" href="css/style.css" />
 <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/1.0.0-beta.8/chess.min.js"></script>
+<!-- chess.js ships ESM-only from cdnjs for every version (no browser-global
+     UMD build exists any more), so it's imported as a module inside
+     js/game.js instead of exposed as a window global here. -->
+
 </head>
 <body>
   <main class="game-layout">
@@ -36,6 +39,6 @@
       </div>
     </aside>
   </main>
-  <script src="js/game.js"></script>
+  <script type="module" src="js/game.js"></script>
 </body>
 </html>

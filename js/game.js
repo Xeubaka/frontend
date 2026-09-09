@@ -1,3 +1,8 @@
+// chess.js is ESM-only on every version cdnjs currently serves (the old
+// UMD/global build no longer exists there) — imported directly rather than
+// relying on a window global from a <script> tag.
+import { Chess } from "https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.13.4/chess.min.js";
+
 const params = new URLSearchParams(window.location.search);
 const roomId = params.get("room");
 const playerName = sessionStorage.getItem("playerName") || "Anonymous";
