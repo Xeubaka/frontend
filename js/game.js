@@ -89,8 +89,47 @@ function onSquareClick(squareName) {
     return;
   }
 
-  gameSocket.emit("move", { roomId, from: selectedSquare, to: squareName, promotion: "q" });
+  const from = selectedSquare;
   selectedSquare = null;
+
+  // chess.js flags a move "p" when it's a pawn reaching the back rank — ask
+  // which piece to promote to instead of always defaulting to a queen.
+  const candidateMoves = chess.moves({ square: from, verbose: true });
+  const promotionMove = candidateMoves.find((m) => m.to === squareName && m.flags.includes("p"));
+
+  if (promotionMove) {
+    renderBoard();
+    showPromotionPicker((piece) => {
+      gameSocket.emit("move", { roomId, from, to: squareName, promotion: piece });
+    });
+    return;
+  }
+
+  gameSocket.emit("move", { roomId, from, to: squareName, promotion: "q" });
+  renderBoard();
+}
+
+function showPromotionPicker(onChoose) {
+  const modal = document.getElementById("promotionModal");
+  const buttons = modal.querySelectorAll("button[data-piece]");
+  const symbolFor = (piece) => PIECE_UNICODE[myColor === "white" ? piece.toUpperCase() : piece];
+
+  buttons.forEach((btn) => {
+    btn.textContent = symbolFor(btn.dataset.piece);
+  });
+
+  function handleClick(event) {
+    cleanup();
+    onChoose(event.currentTarget.dataset.piece);
+  }
+
+  function cleanup() {
+    modal.classList.add("hidden");
+    buttons.forEach((btn) => btn.removeEventListener("click", handleClick));
+  }
+
+  buttons.forEach((btn) => btn.addEventListener("click", handleClick));
+  modal.classList.remove("hidden");
 }
 
 function renderMoveLog(moves) {

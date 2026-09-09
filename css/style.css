@@ -25,3 +25,10 @@ button { padding: 8px 16px; border-radius: 6px; border: none; background: #4caf5
 .chat-messages { flex: 1; overflow-y: auto; max-height: 220px; margin-bottom: 8px; font-size: 14px; }
 .chat-input-row { display: flex; gap: 6px; }
 .chat-input-row input { flex: 1; margin: 0; }
+
+.modal { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.65); display: flex; align-items: center; justify-content: center; z-index: 10; }
+.modal.hidden { display: none; }
+.modal-content { background: #26262b; padding: 20px 24px; border-radius: 10px; text-align: center; }
+.promotion-choices { display: flex; gap: 10px; margin-top: 12px; }
+.promotion-choices button { font-size: 34px; line-height: 1; padding: 10px 14px; background: #333; }
+.promotion-choices button:hover { background: #444; }
