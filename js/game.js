@@ -7,8 +7,12 @@ const params = new URLSearchParams(window.location.search);
 const roomId = params.get("room");
 const playerName = sessionStorage.getItem("playerName") || "Anonymous";
 const myColor = sessionStorage.getItem("playerColor") || "spectator";
+const vsBot = sessionStorage.getItem("vsBot") === "1";
+const botDifficulty = sessionStorage.getItem("botDifficulty") || "medium";
 
-document.getElementById("roomTitle").textContent = `Room ${roomId} — you are ${myColor}`;
+document.getElementById("roomTitle").textContent = vsBot
+  ? `vs. Bot (${botDifficulty}) — you are ${myColor}`
+  : `Room ${roomId} — you are ${myColor}`;
 
 const resignBtn = document.getElementById("resignBtn");
 if (myColor === "white" || myColor === "black") {
@@ -35,7 +39,7 @@ let gameOver = false;
 
 // game-service socket. Path matches the nginx strip-prefix rule.
 const gameSocket = io("/", { path: "/socket/game/socket.io/" });
-gameSocket.emit("join-room", { roomId, color: myColor, name: playerName });
+gameSocket.emit("join-room", { roomId, color: myColor, name: playerName, vsBot, difficulty: botDifficulty });
 
 gameSocket.on("game-state", (state) => {
   moveInFlight = false;
@@ -177,11 +181,17 @@ function renderMoveLog(moves) {
 }
 
 // --- Chat (separate service, separate socket connection) ---
-const chatSocket = io("/", { path: "/socket/chat/socket.io/" });
-chatSocket.emit("join-room", { roomId, name: playerName });
-
-chatSocket.on("chat-history", (messages) => messages.forEach(renderChatMessage));
-chatSocket.on("chat-message", renderChatMessage);
+// Bot games never touch chat-service — there's no second player to talk to,
+// and the room id was never registered anywhere chat-service would know it.
+if (vsBot) {
+  document.querySelector(".chat-block").classList.add("hidden");
+}
+const chatSocket = vsBot ? null : io("/", { path: "/socket/chat/socket.io/" });
+if (chatSocket) {
+  chatSocket.emit("join-room", { roomId, name: playerName });
+  chatSocket.on("chat-history", (messages) => messages.forEach(renderChatMessage));
+  chatSocket.on("chat-message", renderChatMessage);
+}
 
 function renderChatMessage({ name, text, ts }) {
   const el = document.createElement("div");

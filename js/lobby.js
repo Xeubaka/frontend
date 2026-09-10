@@ -17,6 +17,7 @@ document.getElementById("createBtn").addEventListener("click", async () => {
 
   sessionStorage.setItem("playerName", name);
   sessionStorage.setItem("playerColor", you.color);
+  sessionStorage.removeItem("vsBot");
   window.location.href = `game.html?room=${room.id}`;
 });
 
@@ -37,8 +38,24 @@ document.getElementById("joinBtn").addEventListener("click", async () => {
 
     sessionStorage.setItem("playerName", name);
     sessionStorage.setItem("playerColor", you.color);
+    sessionStorage.removeItem("vsBot");
     window.location.href = `game.html?room=${code}`;
   } catch (err) {
     errorEl.textContent = err.message;
   }
+});
+
+// Bot games skip room-service entirely — there's never a second human to
+// join, so a client-generated id is all game-service needs as a Map key.
+document.getElementById("playBotBtn").addEventListener("click", () => {
+  const name = document.getElementById("botName").value || "Player 1";
+  const color = document.getElementById("botColor").value;
+  const difficulty = document.getElementById("botDifficulty").value;
+  const roomId = `bot-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+
+  sessionStorage.setItem("playerName", name);
+  sessionStorage.setItem("playerColor", color);
+  sessionStorage.setItem("vsBot", "1");
+  sessionStorage.setItem("botDifficulty", difficulty);
+  window.location.href = `game.html?room=${roomId}`;
 });
