@@ -41,6 +41,19 @@ let gameOver = false;
 const gameSocket = io("/", { path: "/socket/game/socket.io/" });
 gameSocket.emit("join-room", { roomId, color: myColor, name: playerName, vsBot, difficulty: botDifficulty });
 
+// Fetch whatever analysis already exists for this room (e.g. rejoining a
+// game already in progress, or the page loading after moves were already
+// made) via the REST route instead of the socket, so the win-probability
+// bar isn't stuck at a blank/default 50% until the *next* move triggers a
+// fresh "analysis-update". 404 just means no move has landed yet (fresh
+// room) — that's expected and not an error.
+fetch(`/api/analysis/${roomId}/analysis`)
+  .then((res) => (res.ok ? res.json() : null))
+  .then((data) => {
+    if (data) applyAnalysis(data);
+  })
+  .catch((err) => console.error("initial analysis fetch failed", err));
+
 gameSocket.on("game-state", (state) => {
   moveInFlight = false;
   gameOver = Boolean(state.result) || state.isCheckmate || state.isDraw;
@@ -66,12 +79,14 @@ gameSocket.on("move-rejected", ({ reason }) => {
   setTimeout(() => (document.getElementById("moveError").textContent = ""), 2000);
 });
 
-gameSocket.on("analysis-update", ({ white_win_pct, black_win_pct }) => {
+function applyAnalysis({ white_win_pct, black_win_pct }) {
   document.getElementById("whiteProb").style.width = `${white_win_pct}%`;
   document.getElementById("blackProb").style.width = `${black_win_pct}%`;
   document.getElementById("whiteProb").textContent = `White ${white_win_pct}%`;
   document.getElementById("blackProb").textContent = `Black ${black_win_pct}%`;
-});
+}
+
+gameSocket.on("analysis-update", applyAnalysis);
 
 function renderBoard() {
   const boardEl = document.getElementById("board");
