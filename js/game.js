@@ -10,6 +10,11 @@ const myColor = sessionStorage.getItem("playerColor") || "spectator";
 
 document.getElementById("roomTitle").textContent = `Room ${roomId} — you are ${myColor}`;
 
+const resignBtn = document.getElementById("resignBtn");
+if (myColor === "white" || myColor === "black") {
+  resignBtn.classList.remove("hidden");
+}
+
 const PIECE_UNICODE = {
   p: "♟", n: "♞", b: "♝", r: "♜", q: "♛", k: "♚",
   P: "♙", N: "♘", B: "♗", R: "♖", Q: "♕", K: "♔"
@@ -23,6 +28,10 @@ let selectedSquare = null;
 // local `chess` instance isn't optimistically mutated, so accepting more
 // clicks in between would build a second move against the same stale FEN.
 let moveInFlight = false;
+// True once the game has a final outcome (resignation, checkmate, or draw) —
+// gates both board clicks and the resign button so neither works after the
+// game is over.
+let gameOver = false;
 
 // game-service socket. Path matches the nginx strip-prefix rule.
 const gameSocket = io("/", { path: "/socket/game/socket.io/" });
@@ -30,14 +39,21 @@ gameSocket.emit("join-room", { roomId, color: myColor, name: playerName });
 
 gameSocket.on("game-state", (state) => {
   moveInFlight = false;
+  gameOver = Boolean(state.result) || state.isCheckmate || state.isDraw;
   chess.load(state.fen);
   renderBoard();
   document.getElementById("status").textContent =
-    state.isCheckmate ? `Checkmate — ${state.turn === "white" ? "black" : "white"} wins` :
+    state.result && state.result.reason === "resignation"
+      ? `${state.result.resignedBy} resigned — ${state.result.winner} wins`
+      : state.isCheckmate ? `Checkmate — ${state.turn === "white" ? "black" : "white"} wins` :
     state.isDraw ? "Draw" :
     state.isCheck ? `${state.turn} to move — check!` :
     `${state.turn} to move`;
   renderMoveLog(state.moves);
+  if (gameOver) {
+    resignBtn.classList.add("hidden");
+    selectedSquare = null;
+  }
 });
 
 gameSocket.on("move-rejected", ({ reason }) => {
@@ -83,6 +99,7 @@ function renderBoard() {
 
 function onSquareClick(squareName) {
   if (myColor !== "white" && myColor !== "black") return; // spectators can't move
+  if (gameOver) return; // nothing left to play
   if (moveInFlight) return; // a previous click's move is still awaiting server resolution
 
   if (!selectedSquare) {
@@ -142,6 +159,12 @@ function showPromotionPicker(onChoose) {
   buttons.forEach((btn) => btn.addEventListener("click", handleClick));
   modal.classList.remove("hidden");
 }
+
+resignBtn.addEventListener("click", () => {
+  if (gameOver) return;
+  if (!window.confirm("Resign this game?")) return;
+  gameSocket.emit("resign", { roomId });
+});
 
 function renderMoveLog(moves) {
   const list = document.getElementById("moveLog");

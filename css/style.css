@@ -5,6 +5,9 @@ body { margin: 0; background: #1b1b1f; color: #eee; }
 input { display: block; width: 100%; padding: 8px; margin: 8px 0; border-radius: 6px; border: 1px solid #444; background: #111; color: #eee; }
 button { padding: 8px 16px; border-radius: 6px; border: none; background: #4caf50; color: white; cursor: pointer; }
 .error { color: #ff6b6b; }
+.hidden { display: none; }
+.resign-btn { background: #c0392b; margin: 8px 0; display: block; }
+.resign-btn:hover { background: #a93226; }
 
 .game-layout { display: flex; gap: 24px; padding: 24px; max-width: 1100px; margin: 0 auto; }
 .board-panel { flex: 1; }
