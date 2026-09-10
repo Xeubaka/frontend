@@ -8,5 +8,13 @@
   },
   "devDependencies": {
     "live-server": "^1.2.2"
+  },
+  "overrides": {
+    "chokidar": "^3.6.0",
+    "micromatch": "^4.0.8",
+    "braces": "^3.0.3",
+    "decode-uri-component": "^0.2.2",
+    "uuid": "^9.0.1",
+    "source-map-resolve": "^0.6.0"
   }
 }
