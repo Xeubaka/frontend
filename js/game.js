@@ -2,6 +2,7 @@
 // UMD/global build no longer exists there) — imported directly rather than
 // relying on a window global from a <script> tag.
 import { Chess } from "https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.13.4/chess.min.js";
+import { PIECE_SVG } from "./pieces.js";
 
 const params = new URLSearchParams(window.location.search);
 const roomId = params.get("room");
@@ -19,13 +20,19 @@ if (myColor === "white" || myColor === "black") {
   resignBtn.classList.remove("hidden");
 }
 
-const PIECE_UNICODE = {
-  p: "♟", n: "♞", b: "♝", r: "♜", q: "♛", k: "♚",
-  P: "♙", N: "♘", B: "♗", R: "♖", Q: "♕", K: "♔"
-};
+// Chess.com always shows the viewing player's own side at the bottom of the
+// board — mirror both axes for a black player. Spectators keep white's view.
+const flipped = myColor === "black";
 
 let chess = new Chess();
 let selectedSquare = null;
+// Legal destinations for the currently selected piece, chess.com-style
+// (dot markers for quiet moves, rings for captures) — computed once on
+// selection via chess.js's own move generator, not re-derived per render.
+let legalTargets = [];
+// {from, to} of the most recent move, from the server's serialize() output —
+// drives the last-move highlight.
+let lastMove = null;
 // Guards against two rapid clicks racing: once a move has been emitted,
 // board clicks are ignored until the server authoritatively resolves it
 // (a fresh "game-state" broadcast) or rejects it ("move-rejected") — the
@@ -36,6 +43,12 @@ let moveInFlight = false;
 // gates both board clicks and the resign button so neither works after the
 // game is over.
 let gameOver = false;
+// null until the first "game-state" arrives — distinguishes "just joined an
+// in-progress game" (no move sound for moves already on the board) from a
+// genuinely new move landing.
+let prevMoveCount = null;
+
+renderCoordLabels();
 
 // game-service socket. Path matches the nginx strip-prefix rule.
 const gameSocket = io("/", { path: "/socket/game/socket.io/" });
@@ -56,7 +69,9 @@ fetch(`/api/analysis/${roomId}/analysis`)
 
 gameSocket.on("game-state", (state) => {
   moveInFlight = false;
+  const wasGameOver = gameOver;
   gameOver = Boolean(state.result) || state.isCheckmate || state.isDraw;
+  lastMove = state.lastMove || null;
   chess.load(state.fen);
   renderBoard();
   document.getElementById("status").textContent =
@@ -67,15 +82,26 @@ gameSocket.on("game-state", (state) => {
     state.isCheck ? `${state.turn} to move — check!` :
     `${state.turn} to move`;
   renderMoveLog(state.moves);
+  updatePlayerBars(state);
+
+  const newMoveCount = state.moves.length;
+  if (prevMoveCount !== null && newMoveCount > prevMoveCount) {
+    playMoveSound(state.moves[newMoveCount - 1].includes("x"));
+  }
+  prevMoveCount = newMoveCount;
+  if (gameOver && !wasGameOver) playGameEndSound();
+
   if (gameOver) {
     resignBtn.classList.add("hidden");
     selectedSquare = null;
+    legalTargets = [];
   }
 });
 
 gameSocket.on("move-rejected", ({ reason }) => {
   moveInFlight = false;
   document.getElementById("moveError").textContent = `Illegal move: ${reason}`;
+  playIllegalSound();
   setTimeout(() => (document.getElementById("moveError").textContent = ""), 2000);
 });
 
@@ -88,27 +114,72 @@ function applyAnalysis({ white_win_pct, black_win_pct }) {
 
 gameSocket.on("analysis-update", applyAnalysis);
 
+function updatePlayerBars(state) {
+  const isSpectator = myColor !== "white" && myColor !== "black";
+  const bottomColor = isSpectator ? "white" : myColor;
+  const topColor = bottomColor === "white" ? "black" : "white";
+
+  const label = (color) => {
+    if (vsBot && color !== myColor) return `Bot (${botDifficulty})`;
+    const player = state.players[color];
+    if (isSpectator) return player ? `${player.name} (${color})` : color;
+    return color === myColor ? `${playerName} (you)` : (player ? player.name : color);
+  };
+
+  document.getElementById("opponentName").textContent = label(topColor);
+  document.getElementById("selfName").textContent = label(bottomColor);
+  document.getElementById("opponentDot").classList.toggle("active", state.turn === topColor);
+  document.getElementById("selfDot").classList.toggle("active", state.turn === bottomColor);
+}
+
+function renderCoordLabels() {
+  const filesEl = document.getElementById("fileLabels");
+  const ranksEl = document.getElementById("rankLabels");
+  const files = flipped ? "hgfedcba" : "abcdefgh";
+
+  for (let c = 0; c < 8; c++) {
+    const span = document.createElement("span");
+    span.textContent = files[c];
+    filesEl.appendChild(span);
+  }
+  for (let r = 0; r < 8; r++) {
+    const span = document.createElement("span");
+    span.textContent = flipped ? r + 1 : 8 - r;
+    ranksEl.appendChild(span);
+  }
+}
+
 function renderBoard() {
   const boardEl = document.getElementById("board");
   boardEl.innerHTML = "";
-  const board = chess.board(); // 8x8, board[0] = rank 8
+  const board = chess.board(); // 8x8, board[0] = rank 8, board[row][0] = file a
+  const legalSquares = new Set(legalTargets.map((t) => t.square));
+  const captureSquares = new Set(legalTargets.filter((t) => t.capture).map((t) => t.square));
 
-  for (let row = 0; row < 8; row++) {
-    for (let col = 0; col < 8; col++) {
-      const squareEl = document.createElement("div");
-      const file = "abcdefgh"[col];
-      const rank = 8 - row;
+  for (let visRow = 0; visRow < 8; visRow++) {
+    for (let visCol = 0; visCol < 8; visCol++) {
+      const rank = flipped ? visRow + 1 : 8 - visRow;
+      const fileIndex = flipped ? 7 - visCol : visCol;
+      const file = "abcdefgh"[fileIndex];
       const squareName = `${file}${rank}`;
+      const boardRow = 8 - rank;
+      const boardCol = fileIndex;
 
-      squareEl.className = `square ${(row + col) % 2 === 0 ? "light" : "dark"}`;
+      const squareEl = document.createElement("div");
+      // Square color is tied to the real square identity, not visual
+      // position, so it never changes when the board is flipped.
+      squareEl.className = `square ${(boardRow + boardCol) % 2 === 0 ? "light" : "dark"}`;
       squareEl.dataset.square = squareName;
 
-      const piece = board[row][col];
+      const piece = board[boardRow][boardCol];
       if (piece) {
         const symbol = piece.color === "w" ? piece.type.toUpperCase() : piece.type;
-        squareEl.textContent = PIECE_UNICODE[symbol];
+        squareEl.innerHTML = PIECE_SVG[symbol];
       }
       if (squareName === selectedSquare) squareEl.classList.add("selected");
+      if (lastMove && (squareName === lastMove.from || squareName === lastMove.to)) squareEl.classList.add("last-move");
+      if (captureSquares.has(squareName)) squareEl.classList.add("legal-capture");
+      else if (legalSquares.has(squareName)) squareEl.classList.add("legal-move");
 
       squareEl.addEventListener("click", () => onSquareClick(squareName));
       boardEl.appendChild(squareEl);
@@ -123,19 +194,27 @@ function onSquareClick(squareName) {
 
   if (!selectedSquare) {
     const piece = chess.get(squareName);
-    if (piece && piece.color === myColor[0]) selectedSquare = squareName;
+    if (piece && piece.color === myColor[0]) {
+      selectedSquare = squareName;
+      legalTargets = chess.moves({ square: squareName, verbose: true }).map((m) => ({
+        square: m.to,
+        capture: m.flags.includes("c") || m.flags.includes("e")
+      }));
+    }
     renderBoard();
     return;
   }
 
   if (selectedSquare === squareName) {
     selectedSquare = null;
+    legalTargets = [];
     renderBoard();
     return;
   }
 
   const from = selectedSquare;
   selectedSquare = null;
+  legalTargets = [];
 
   // chess.js flags a move "p" when it's a pawn reaching the back rank — ask
   // which piece to promote to instead of always defaulting to a queen.
@@ -159,10 +238,10 @@ function onSquareClick(squareName) {
 function showPromotionPicker(onChoose) {
   const modal = document.getElementById("promotionModal");
   const buttons = modal.querySelectorAll("button[data-piece]");
-  const symbolFor = (piece) => PIECE_UNICODE[myColor === "white" ? piece.toUpperCase() : piece];
+  const svgFor = (piece) => PIECE_SVG[myColor === "white" ? piece.toUpperCase() : piece];
 
   buttons.forEach((btn) => {
-    btn.textContent = symbolFor(btn.dataset.piece);
+    btn.innerHTML = svgFor(btn.dataset.piece);
   });
 
   function handleClick(event) {
@@ -188,12 +267,43 @@ resignBtn.addEventListener("click", () => {
 function renderMoveLog(moves) {
   const list = document.getElementById("moveLog");
   list.innerHTML = "";
-  moves.forEach((san) => {
-    const li = document.createElement("li");
-    li.textContent = san;
-    list.appendChild(li);
-  });
+  for (let i = 0; i < moves.length; i += 2) {
+    const row = document.createElement("div");
+    row.className = "move-row";
+
+    const num = document.createElement("span");
+    num.className = "move-num";
+    num.textContent = `${i / 2 + 1}.`;
+
+    const white = document.createElement("span");
+    white.textContent = moves[i] || "";
+
+    const black = document.createElement("span");
+    black.textContent = moves[i + 1] || "";
+
+    row.append(num, white, black);
+    list.appendChild(row);
+  }
+  list.scrollTop = list.scrollHeight;
 }
+
+// --- Sound effects (Web Audio API tones — no audio assets to ship/license) ---
+let audioCtx = null;
+function playTone(freq, duration, type) {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = type;
+  osc.frequency.value = freq;
+  gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+  osc.connect(gain).connect(audioCtx.destination);
+  osc.start();
+  osc.stop(audioCtx.currentTime + duration);
+}
+const playMoveSound = (isCapture) => playTone(isCapture ? 330 : 440, isCapture ? 0.15 : 0.1, isCapture ? "square" : "sine");
+const playGameEndSound = () => playTone(220, 0.4, "sawtooth");
+const playIllegalSound = () => playTone(140, 0.15, "square");
 
 // --- Chat (separate service, separate socket connection) ---
 // Bot games never touch chat-service — there's no second player to talk to,
