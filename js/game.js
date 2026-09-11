@@ -121,7 +121,11 @@ gameSocket.on("game-state", (state) => {
     resignBtn.classList.add("hidden");
     selectedSquare = null;
     legalTargets = [];
+    // Bot games have no second human to run the accept/decline rematch flow
+    // against — just offer an immediate replay instead (frontend#5).
+    if (vsBot) document.getElementById("playAgainBtn").classList.remove("hidden");
   } else {
+    document.getElementById("playAgainBtn").classList.add("hidden");
     // A rematch was accepted (or this is a fresh game): clear any leftover
     // rematch-panel state from the previous game.
     roomClosed = false;
@@ -196,6 +200,14 @@ document.getElementById("rematchAcceptBtn").addEventListener("click", () => {
 });
 document.getElementById("rematchDeclineBtn").addEventListener("click", () => {
   gameSocket.emit("rematch-response", { roomId, accept: false });
+});
+
+document.getElementById("playAgainBtn").addEventListener("click", () => {
+  // sessionStorage's playerName/playerColor/vsBot/botDifficulty are already
+  // correct for this session (unchanged) — a "new" bot game is just a fresh
+  // room id, same bootstrap frontend/js/lobby.js's playBotBtn uses.
+  const newRoomId = `bot-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+  window.location.href = `game.html?room=${newRoomId}`;
 });
 
 function applyAnalysis({ white_win_pct, black_win_pct }) {
