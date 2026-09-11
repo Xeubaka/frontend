@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Chess Platform — Admin</title>
+<link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <main class="admin-page">
+    <h1>Game history</h1>
+    <p class="landing-note">No auth on this page — local-only use, per <a href="index.html">docs/SCOPE.md</a>.</p>
+    <p id="adminError" class="error"></p>
+    <table id="adminTable" class="admin-table">
+      <thead>
+        <tr>
+          <th>Room</th>
+          <th>Status</th>
+          <th>Outcome</th>
+          <th>Moves</th>
+          <th>Players</th>
+          <th>Updated</th>
+        </tr>
+      </thead>
+      <tbody id="adminRows"></tbody>
+    </table>
+    <p id="adminEmpty" class="hidden">No games recorded yet — persistence needs <code>GAME_DB_URL</code> set (see CLAUDE.md) and at least one move played.</p>
+  </main>
+  <script src="js/admin.js"></script>
+</body>
+</html>

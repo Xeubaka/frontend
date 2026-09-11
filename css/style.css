@@ -31,6 +31,12 @@ button:hover { background: var(--accent-hover); }
 .resign-btn { background: var(--danger); color: #fff; margin: 8px 0; display: block; }
 .resign-btn:hover { background: var(--danger-hover); }
 
+.admin-page { max-width: 900px; margin: 40px auto; padding: 0 20px; }
+.admin-page .landing-note { color: var(--text-dim); }
+.admin-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.admin-table th, .admin-table td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--panel-light); }
+.admin-table th { color: var(--text-dim); text-transform: uppercase; font-size: 0.8rem; letter-spacing: 0.04em; }
+
 .game-layout { display: flex; gap: 24px; padding: 24px; max-width: 1100px; margin: 0 auto; flex-wrap: wrap; }
 .board-panel { flex: 1; min-width: 320px; }
 .side-panel { width: 300px; display: flex; flex-direction: column; gap: 16px; }
