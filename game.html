@@ -16,6 +16,15 @@
       <h2 id="roomTitle">Room</h2>
       <p id="status"></p>
       <button id="resignBtn" type="button" class="resign-btn hidden">Resign</button>
+      <div id="rematchPanel">
+        <button id="rematchRequestBtn" type="button" class="hidden">Propose Rematch</button>
+        <div id="rematchOffer" class="hidden">
+          <p id="rematchOfferText"></p>
+          <button id="rematchAcceptBtn" type="button">Accept</button>
+          <button id="rematchDeclineBtn" type="button" class="resign-btn">Decline</button>
+        </div>
+        <p id="rematchStatus"></p>
+      </div>
       <p>Win probability</p>
       <div class="prob-bar">
         <div id="whiteProb" class="prob-white">50%</div>

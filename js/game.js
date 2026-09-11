@@ -59,6 +59,12 @@ let prevMoveCount = null;
 // server ticking every second over the socket — see docs/SCOPE.md's design
 // note on this item.
 let clockState = null;
+// Pending rematch offer from the server ({requestedBy, expiresAt}) or null.
+let rematchState = null;
+// True once this room has been finalized after a declined/expired rematch —
+// game-service tells room-service to close it; the frontend just stops
+// offering a rematch button once that happens (no further server checks).
+let roomClosed = false;
 
 renderCoordLabels();
 
@@ -85,6 +91,7 @@ gameSocket.on("game-state", (state) => {
   gameOver = Boolean(state.result) || state.isCheckmate || state.isDraw;
   lastMove = state.lastMove || null;
   clockState = state.clocks ? { clocks: state.clocks, turnStartedAt: state.turnStartedAt, turn: state.turn } : null;
+  rematchState = state.rematch || null;
   chess.load(state.fen);
   renderBoard();
   document.getElementById("status").textContent =
@@ -110,7 +117,13 @@ gameSocket.on("game-state", (state) => {
     resignBtn.classList.add("hidden");
     selectedSquare = null;
     legalTargets = [];
+  } else {
+    // A rematch was accepted (or this is a fresh game): clear any leftover
+    // rematch-panel state from the previous game.
+    roomClosed = false;
+    document.getElementById("rematchStatus").textContent = "";
   }
+  renderRematchPanel();
 });
 
 gameSocket.on("move-rejected", ({ reason }) => {
@@ -118,6 +131,67 @@ gameSocket.on("move-rejected", ({ reason }) => {
   document.getElementById("moveError").textContent = `Illegal move: ${reason}`;
   playIllegalSound();
   setTimeout(() => (document.getElementById("moveError").textContent = ""), 2000);
+});
+
+gameSocket.on("rematch-offered", (rematch) => {
+  rematchState = rematch;
+  renderRematchPanel();
+});
+
+gameSocket.on("rematch-closed", ({ reason }) => {
+  rematchState = null;
+  roomClosed = true;
+  document.getElementById("rematchStatus").textContent =
+    reason === "declined" ? "Opponent declined the rematch — room closed." : "Rematch offer expired — room closed.";
+  renderRematchPanel();
+});
+
+function renderRematchPanel() {
+  const requestBtn = document.getElementById("rematchRequestBtn");
+  const offer = document.getElementById("rematchOffer");
+  const offerText = document.getElementById("rematchOfferText");
+  const status = document.getElementById("rematchStatus");
+  const isPlayer = myColor === "white" || myColor === "black";
+
+  if (!gameOver || vsBot || !isPlayer) {
+    requestBtn.classList.add("hidden");
+    offer.classList.add("hidden");
+    return;
+  }
+
+  if (roomClosed) {
+    requestBtn.classList.add("hidden");
+    offer.classList.add("hidden");
+    return; // status text already set by the rematch-closed handler
+  }
+
+  if (!rematchState) {
+    requestBtn.classList.remove("hidden");
+    offer.classList.add("hidden");
+    status.textContent = "";
+    return;
+  }
+
+  const secondsLeft = Math.max(0, Math.ceil((rematchState.expiresAt - Date.now()) / 1000));
+  requestBtn.classList.add("hidden");
+  if (rematchState.requestedBy === myColor) {
+    offer.classList.add("hidden");
+    status.textContent = `Rematch offer sent — waiting for opponent (${secondsLeft}s)...`;
+  } else {
+    offer.classList.remove("hidden");
+    offerText.textContent = `Opponent wants a rematch (${secondsLeft}s)`;
+    status.textContent = "";
+  }
+}
+
+document.getElementById("rematchRequestBtn").addEventListener("click", () => {
+  gameSocket.emit("rematch-request", { roomId });
+});
+document.getElementById("rematchAcceptBtn").addEventListener("click", () => {
+  gameSocket.emit("rematch-response", { roomId, accept: true });
+});
+document.getElementById("rematchDeclineBtn").addEventListener("click", () => {
+  gameSocket.emit("rematch-response", { roomId, accept: false });
 });
 
 function applyAnalysis({ white_win_pct, black_win_pct }) {
@@ -194,7 +268,10 @@ function renderClocks() {
   topEl.classList.toggle("clock-low", !gameOver && topColor === clockState.turn && topMs < LOW_TIME_DISPLAY_MS);
 }
 
-setInterval(renderClocks, 250);
+setInterval(() => {
+  renderClocks();
+  renderRematchPanel(); // keeps the accept-window countdown live between server events
+}, 250);
 
 function renderCoordLabels() {
   const filesEl = document.getElementById("fileLabels");
