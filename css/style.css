@@ -31,6 +31,9 @@ button:hover { background: var(--accent-hover); }
 .resign-btn { background: var(--danger); color: #fff; margin: 8px 0; display: block; }
 .resign-btn:hover { background: var(--danger-hover); }
 
+.back-link { color: var(--accent); text-decoration: none; font-size: 14px; display: inline-block; margin-bottom: 4px; }
+.back-link:hover { text-decoration: underline; }
+
 .admin-page { max-width: 900px; margin: 40px auto; padding: 0 20px; }
 .admin-page .landing-note { color: var(--text-dim); }
 .admin-table { width: 100%; border-collapse: collapse; font-size: 14px; }
