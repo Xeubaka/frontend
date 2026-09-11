@@ -40,6 +40,8 @@ button:hover { background: var(--accent-hover); }
 .player-bar { display: flex; align-items: center; gap: 8px; padding: 6px 2px; font-size: 14px; color: var(--text-dim); }
 .turn-dot { width: 9px; height: 9px; border-radius: 50%; background: #555; flex-shrink: 0; }
 .turn-dot.active { background: var(--accent); box-shadow: 0 0 6px var(--accent); }
+.clock { margin-left: auto; font-variant-numeric: tabular-nums; font-weight: 600; color: var(--text-dim); }
+.clock.clock-low { color: var(--danger); }
 
 .board-wrap { position: relative; display: inline-block; padding-left: 18px; padding-bottom: 18px; }
 .board { display: grid; grid-template-columns: repeat(8, 64px); grid-template-rows: repeat(8, 64px); border-radius: 4px; overflow: hidden; box-shadow: 0 4px 16px rgba(0,0,0,0.4); width: fit-content; }

@@ -47,6 +47,13 @@ let gameOver = false;
 // in-progress game" (no move sound for moves already on the board) from a
 // genuinely new move landing.
 let prevMoveCount = null;
+// Latest clock snapshot from the server ({clocks, turnStartedAt, turn}), or
+// null when the clock hasn't started yet (waiting for an opponent) or this
+// is a bot game (game-service never starts one). The side to move's time is
+// rendered as a local countdown between these resync points instead of the
+// server ticking every second over the socket — see docs/SCOPE.md's design
+// note on this item.
+let clockState = null;
 
 renderCoordLabels();
 
@@ -72,11 +79,14 @@ gameSocket.on("game-state", (state) => {
   const wasGameOver = gameOver;
   gameOver = Boolean(state.result) || state.isCheckmate || state.isDraw;
   lastMove = state.lastMove || null;
+  clockState = state.clocks ? { clocks: state.clocks, turnStartedAt: state.turnStartedAt, turn: state.turn } : null;
   chess.load(state.fen);
   renderBoard();
   document.getElementById("status").textContent =
     state.result && state.result.reason === "resignation"
       ? `${state.result.resignedBy} resigned — ${state.result.winner} wins`
+      : state.result && state.result.reason === "flagfall"
+      ? `${state.result.loser} ran out of time — ${state.result.winner} wins`
       : state.isCheckmate ? `Checkmate — ${state.turn === "white" ? "black" : "white"} wins` :
     state.isDraw ? "Draw" :
     state.isCheck ? `${state.turn} to move — check!` :
@@ -114,10 +124,18 @@ function applyAnalysis({ white_win_pct, black_win_pct }) {
 
 gameSocket.on("analysis-update", applyAnalysis);
 
-function updatePlayerBars(state) {
+// Which color renders in the bottom ("self") vs. top ("opponent") player bar
+// — the board already flips per-viewer (see `flipped` above), so which side
+// is physically on top/bottom varies by who's looking, not by white/black.
+function viewColors() {
   const isSpectator = myColor !== "white" && myColor !== "black";
   const bottomColor = isSpectator ? "white" : myColor;
   const topColor = bottomColor === "white" ? "black" : "white";
+  return { bottomColor, topColor, isSpectator };
+}
+
+function updatePlayerBars(state) {
+  const { bottomColor, topColor, isSpectator } = viewColors();
 
   const label = (color) => {
     if (vsBot && color !== myColor) return `Bot (${botDifficulty})`;
@@ -131,6 +149,47 @@ function updatePlayerBars(state) {
   document.getElementById("opponentDot").classList.toggle("active", state.turn === topColor);
   document.getElementById("selfDot").classList.toggle("active", state.turn === bottomColor);
 }
+
+const LOW_TIME_DISPLAY_MS = 10000;
+
+function formatClock(ms) {
+  const totalSeconds = Math.max(0, Math.ceil(ms / 1000));
+  const m = Math.floor(totalSeconds / 60);
+  const s = totalSeconds % 60;
+  return `${m}:${String(s).padStart(2, "0")}`;
+}
+
+// Renders both clocks from the last server resync, locally counting down the
+// side to move between resyncs rather than polling/ticking over the socket.
+function renderClocks() {
+  const { bottomColor, topColor } = viewColors();
+  const bottomEl = document.getElementById("selfClock");
+  const topEl = document.getElementById("opponentClock");
+
+  if (!clockState) {
+    bottomEl.textContent = "";
+    topEl.textContent = "";
+    return;
+  }
+
+  const remaining = (color) => {
+    // Once the game is over, clocks are frozen exactly as the server sent
+    // them (including a flag-fall's final 0) — don't keep counting down.
+    if (!gameOver && color === clockState.turn) {
+      return Math.max(0, clockState.clocks[color] - (Date.now() - clockState.turnStartedAt));
+    }
+    return clockState.clocks[color];
+  };
+
+  const bottomMs = remaining(bottomColor);
+  const topMs = remaining(topColor);
+  bottomEl.textContent = formatClock(bottomMs);
+  topEl.textContent = formatClock(topMs);
+  bottomEl.classList.toggle("clock-low", !gameOver && bottomColor === clockState.turn && bottomMs < LOW_TIME_DISPLAY_MS);
+  topEl.classList.toggle("clock-low", !gameOver && topColor === clockState.turn && topMs < LOW_TIME_DISPLAY_MS);
+}
+
+setInterval(renderClocks, 250);
 
 function renderCoordLabels() {
   const filesEl = document.getElementById("fileLabels");
