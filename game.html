@@ -25,20 +25,21 @@
         </div>
         <p id="rematchStatus"></p>
       </div>
-      <p>Win probability</p>
-      <div class="prob-bar">
-        <div id="whiteProb" class="prob-white">50%</div>
-        <div id="blackProb" class="prob-black">50%</div>
-      </div>
       <div class="player-bar" id="opponentBar">
         <span class="turn-dot" id="opponentDot"></span>
         <span id="opponentName">Opponent</span>
         <span id="opponentClock" class="clock"></span>
       </div>
-      <div class="board-wrap">
-        <div id="board" class="board"></div>
-        <div id="fileLabels" class="coord-files"></div>
-        <div id="rankLabels" class="coord-ranks"></div>
+      <div class="board-row">
+        <div class="prob-bar-vertical" id="probBarVertical">
+          <div id="blackProb" class="prob-black-v" style="height: 50%">50%</div>
+          <div id="whiteProb" class="prob-white-v" style="height: 50%">50%</div>
+        </div>
+        <div class="board-wrap">
+          <div id="board" class="board"></div>
+          <div id="fileLabels" class="coord-files"></div>
+          <div id="rankLabels" class="coord-ranks"></div>
+        </div>
       </div>
       <div class="player-bar" id="selfBar">
         <span class="turn-dot" id="selfDot"></span>

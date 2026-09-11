@@ -28,6 +28,10 @@ if (myColor === "white" || myColor === "black") {
 // Chess.com always shows the viewing player's own side at the bottom of the
 // board — mirror both axes for a black player. Spectators keep white's view.
 const flipped = myColor === "black";
+// The vertical win-probability bar mirrors the same orientation as the
+// player bars (self at bottom) — flex-direction reverses once at load,
+// segment color stays fixed to the actual side regardless (see style.css).
+if (flipped) document.getElementById("probBarVertical").classList.add("flipped");
 
 let chess = new Chess();
 let selectedSquare = null;
@@ -195,8 +199,8 @@ document.getElementById("rematchDeclineBtn").addEventListener("click", () => {
 });
 
 function applyAnalysis({ white_win_pct, black_win_pct }) {
-  document.getElementById("whiteProb").style.width = `${white_win_pct}%`;
-  document.getElementById("blackProb").style.width = `${black_win_pct}%`;
+  document.getElementById("whiteProb").style.height = `${white_win_pct}%`;
+  document.getElementById("blackProb").style.height = `${black_win_pct}%`;
   document.getElementById("whiteProb").textContent = `White ${white_win_pct}%`;
   document.getElementById("blackProb").textContent = `Black ${black_win_pct}%`;
 }

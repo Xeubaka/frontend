@@ -79,9 +79,22 @@ button:hover { background: var(--accent-hover); }
 .coord-ranks { position: absolute; left: 0; top: 0; display: flex; flex-direction: column; }
 .coord-ranks span { height: 64px; display: flex; align-items: center; font-size: 11px; color: var(--text-dim); }
 
-.prob-bar { display: flex; width: 100%; max-width: 512px; height: 24px; border-radius: 6px; overflow: hidden; margin-bottom: 8px; }
-.prob-white { background: #eee; color: #111; display: flex; align-items: center; justify-content: center; font-size: 12px; }
-.prob-black { background: #333; color: #eee; display: flex; align-items: center; justify-content: center; font-size: 12px; }
+/* flex-shrink: 0 on both — the board's grid tracks are fixed px sizes that
+   don't actually shrink, so without this a narrow viewport squeezes the bar
+   down to 0 width first while the board stays full-size regardless. */
+.board-row { display: flex; align-items: flex-start; gap: 8px; }
+.board-row > .board-wrap { flex-shrink: 0; }
+
+/* Vertical, left of the board (chess.com/lichess-style eval bar). Segment
+   color always tracks the actual side (white/black) via fixed DOM elements;
+   only their flex order flips (.flipped) to match this viewer's board
+   orientation (frontend/js/game.js's `flipped`) — a black player sees their
+   own side at the bottom, same as the player bars above/below the board. */
+.prob-bar-vertical { display: flex; flex-direction: column; flex-shrink: 0; width: 22px; height: 512px; border-radius: 4px; overflow: hidden; box-shadow: 0 2px 6px rgba(0,0,0,0.25); }
+.prob-bar-vertical.flipped { flex-direction: column-reverse; }
+.prob-white-v, .prob-black-v { display: flex; align-items: center; justify-content: center; font-size: 10px; writing-mode: vertical-rl; text-orientation: mixed; }
+.prob-white-v { background: #eee; color: #111; }
+.prob-black-v { background: #333; color: #eee; }
 
 .move-log { overflow-y: auto; max-height: 200px; font-size: 14px; }
 .move-row { display: grid; grid-template-columns: 28px 1fr 1fr; gap: 4px; padding: 2px 4px; border-radius: 4px; }
