@@ -10,6 +10,11 @@ const playerName = sessionStorage.getItem("playerName") || "Anonymous";
 const myColor = sessionStorage.getItem("playerColor") || "spectator";
 const vsBot = sessionStorage.getItem("vsBot") === "1";
 const botDifficulty = sessionStorage.getItem("botDifficulty") || "medium";
+// Room-configurable time control (room-service#2/game-service#2): the room
+// host's chosen per-player clock, read back from room-service's room object
+// at create/join time (frontend/js/lobby.js). Bot games have no clock at all
+// (see game-service), so there's nothing to read for them.
+const timeControlMs = Number(sessionStorage.getItem("timeControlMs")) || undefined;
 
 document.getElementById("roomTitle").textContent = vsBot
   ? `vs. Bot (${botDifficulty}) — you are ${myColor}`
@@ -59,7 +64,7 @@ renderCoordLabels();
 
 // game-service socket. Path matches the nginx strip-prefix rule.
 const gameSocket = io("/", { path: "/socket/game/socket.io/" });
-gameSocket.emit("join-room", { roomId, color: myColor, name: playerName, vsBot, difficulty: botDifficulty });
+gameSocket.emit("join-room", { roomId, color: myColor, name: playerName, vsBot, difficulty: botDifficulty, timeControlMs });
 
 // Fetch whatever analysis already exists for this room (e.g. rejoining a
 // game already in progress, or the page loading after moves were already

@@ -2,7 +2,12 @@ const API_BASE = "/api";
 
 document.getElementById("createBtn").addEventListener("click", async () => {
   const name = document.getElementById("createName").value || "Player 1";
-  const res = await fetch(`${API_BASE}/rooms`, { method: "POST" });
+  const timeControlMinutes = Number(document.getElementById("createTimeControl").value);
+  const res = await fetch(`${API_BASE}/rooms`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ timeControlMinutes })
+  });
   const room = await res.json();
 
   const joinRes = await fetch(`${API_BASE}/rooms/${room.id}/join`, {
@@ -17,6 +22,7 @@ document.getElementById("createBtn").addEventListener("click", async () => {
 
   sessionStorage.setItem("playerName", name);
   sessionStorage.setItem("playerColor", you.color);
+  sessionStorage.setItem("timeControlMs", room.timeControlMs);
   sessionStorage.removeItem("vsBot");
   window.location.href = `game.html?room=${room.id}`;
 });
@@ -34,10 +40,11 @@ document.getElementById("joinBtn").addEventListener("click", async () => {
       body: JSON.stringify({ playerName: name })
     });
     if (!joinRes.ok) throw new Error("Room not found");
-    const { you } = await joinRes.json();
+    const { room, you } = await joinRes.json();
 
     sessionStorage.setItem("playerName", name);
     sessionStorage.setItem("playerColor", you.color);
+    sessionStorage.setItem("timeControlMs", room.timeControlMs);
     sessionStorage.removeItem("vsBot");
     window.location.href = `game.html?room=${code}`;
   } catch (err) {
