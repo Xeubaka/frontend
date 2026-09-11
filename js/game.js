@@ -344,6 +344,14 @@ function renderBoard() {
   }
 }
 
+// Dots/rings for a selected piece's legal destinations, chess.com-style.
+function legalMoveTargets(square) {
+  return chess.moves({ square, verbose: true }).map((m) => ({
+    square: m.to,
+    capture: m.flags.includes("c") || m.flags.includes("e")
+  }));
+}
+
 function onSquareClick(squareName) {
   if (myColor !== "white" && myColor !== "black") return; // spectators can't move
   if (gameOver) return; // nothing left to play
@@ -353,10 +361,7 @@ function onSquareClick(squareName) {
     const piece = chess.get(squareName);
     if (piece && piece.color === myColor[0]) {
       selectedSquare = squareName;
-      legalTargets = chess.moves({ square: squareName, verbose: true }).map((m) => ({
-        square: m.to,
-        capture: m.flags.includes("c") || m.flags.includes("e")
-      }));
+      legalTargets = legalMoveTargets(squareName);
     }
     renderBoard();
     return;
@@ -365,6 +370,23 @@ function onSquareClick(squareName) {
   if (selectedSquare === squareName) {
     selectedSquare = null;
     legalTargets = [];
+    renderBoard();
+    return;
+  }
+
+  if (!legalTargets.some((t) => t.square === squareName)) {
+    // Not a legal destination for the selected piece. Re-select if it's
+    // another of the player's own pieces (chess.com-style); otherwise this
+    // is an out-of-range click — just clear the selection instead of
+    // emitting a move the server would only have to reject.
+    const piece = chess.get(squareName);
+    if (piece && piece.color === myColor[0]) {
+      selectedSquare = squareName;
+      legalTargets = legalMoveTargets(squareName);
+    } else {
+      selectedSquare = null;
+      legalTargets = [];
+    }
     renderBoard();
     return;
   }
