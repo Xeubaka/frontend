@@ -56,6 +56,17 @@ let gameOver = false;
 // in-progress game" (no move sound for moves already on the board) from a
 // genuinely new move landing.
 let prevMoveCount = null;
+// "Highlight pieces on danger" setting (frontend#7) — client-side only,
+// persisted in localStorage, read once at load. Gates the in-check king
+// highlight in renderBoard().
+let highlightCheckSetting = localStorage.getItem("highlightCheck") === "1";
+const highlightCheckToggle = document.getElementById("highlightCheckToggle");
+highlightCheckToggle.checked = highlightCheckSetting;
+highlightCheckToggle.addEventListener("change", () => {
+  highlightCheckSetting = highlightCheckToggle.checked;
+  localStorage.setItem("highlightCheck", highlightCheckSetting ? "1" : "0");
+  renderBoard();
+});
 // Latest clock snapshot from the server ({clocks, turnStartedAt, turn}), or
 // null when the clock hasn't started yet (waiting for an opponent) or this
 // is a bot game (game-service never starts one). The side to move's time is
@@ -306,12 +317,33 @@ function renderCoordLabels() {
   }
 }
 
+// chess.js has no direct "find king" helper — scan the board for the side to
+// move's king, only while that side is actually in check.
+function checkedKingSquare(board) {
+  // The frontend vendors chess.js 0.13.4 (cdnjs has no browser-global build
+  // for any newer version — see the ESM-import note at the top of this
+  // file), which predates the 1.x camelCase rename: it's in_check(), not
+  // isCheck(), unlike game-service's own (newer) chess.js dependency.
+  if (!chess.in_check()) return null;
+  const turn = chess.turn();
+  for (let row = 0; row < 8; row++) {
+    for (let col = 0; col < 8; col++) {
+      const piece = board[row][col];
+      if (piece && piece.type === "k" && piece.color === turn) {
+        return `${"abcdefgh"[col]}${8 - row}`;
+      }
+    }
+  }
+  return null;
+}
+
 function renderBoard() {
   const boardEl = document.getElementById("board");
   boardEl.innerHTML = "";
   const board = chess.board(); // 8x8, board[0] = rank 8, board[row][0] = file a
   const legalSquares = new Set(legalTargets.map((t) => t.square));
   const captureSquares = new Set(legalTargets.filter((t) => t.capture).map((t) => t.square));
+  const inCheckSquare = highlightCheckSetting ? checkedKingSquare(board) : null;
 
   for (let visRow = 0; visRow < 8; visRow++) {
     for (let visCol = 0; visCol < 8; visCol++) {
@@ -337,6 +369,7 @@ function renderBoard() {
       if (lastMove && (squareName === lastMove.from || squareName === lastMove.to)) squareEl.classList.add("last-move");
       if (captureSquares.has(squareName)) squareEl.classList.add("legal-capture");
       else if (legalSquares.has(squareName)) squareEl.classList.add("legal-move");
+      if (squareName === inCheckSquare) squareEl.classList.add("in-check");
 
       squareEl.addEventListener("click", () => onSquareClick(squareName));
       boardEl.appendChild(squareEl);

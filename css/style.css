@@ -60,6 +60,9 @@ button:hover { background: var(--accent-hover); }
 .dark { background: var(--dark-sq); }
 
 .selected, .last-move { box-shadow: inset 0 0 0 999px var(--highlight); }
+.square.in-check { background: radial-gradient(circle, rgba(192, 57, 43, 0.9) 0%, rgba(192, 57, 43, 0) 70%); }
+.settings-toggle { display: block; color: var(--text-dim); font-size: 13px; margin: 6px 0; cursor: pointer; }
+.settings-toggle input { width: auto; display: inline; margin: 0 6px 0 0; vertical-align: middle; }
 
 .square.legal-move::after {
   content: "";
