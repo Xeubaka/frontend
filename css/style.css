@@ -27,7 +27,13 @@ input:focus, select:focus { outline: none; border-color: var(--accent); }
 button { padding: 10px 20px; border-radius: 999px; border: none; background: var(--accent); color: #1a1a1a; font-weight: 600; cursor: pointer; transition: background 0.15s ease; }
 button:hover { background: var(--accent-hover); }
 .error { color: #ff6b6b; }
-.hidden { display: none; }
+/* !important: .hidden must win regardless of source order against any
+   component class with its own `display` (e.g. .resign-btn's display:block
+   declared below) — without it, equal specificity means whichever rule is
+   declared later in the stylesheet wins, not whichever class was added
+   later at runtime. Found via #resignBtn staying visibly stuck after
+   game-over while verifying frontend#8's end-of-game modal. */
+.hidden { display: none !important; }
 .resign-btn { background: var(--danger); color: #fff; margin: 8px 0; display: block; }
 .resign-btn:hover { background: var(--danger-hover); }
 

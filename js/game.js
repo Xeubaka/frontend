@@ -109,7 +109,7 @@ gameSocket.on("game-state", (state) => {
   rematchState = state.rematch || null;
   chess.load(state.fen);
   renderBoard();
-  document.getElementById("status").textContent =
+  const statusText =
     state.result && state.result.reason === "resignation"
       ? `${state.result.resignedBy} resigned — ${state.result.winner} wins`
       : state.result && state.result.reason === "flagfall"
@@ -118,6 +118,7 @@ gameSocket.on("game-state", (state) => {
     state.isDraw ? "Draw" :
     state.isCheck ? `${state.turn} to move — check!` :
     `${state.turn} to move`;
+  document.getElementById("status").textContent = statusText;
   renderMoveLog(state.moves);
   updatePlayerBars(state);
 
@@ -135,12 +136,14 @@ gameSocket.on("game-state", (state) => {
     // Bot games have no second human to run the accept/decline rematch flow
     // against — just offer an immediate replay instead (frontend#5).
     if (vsBot) document.getElementById("playAgainBtn").classList.remove("hidden");
+    if (!wasGameOver) showEndGameModal(statusText);
   } else {
     document.getElementById("playAgainBtn").classList.add("hidden");
     // A rematch was accepted (or this is a fresh game): clear any leftover
     // rematch-panel state from the previous game.
     roomClosed = false;
     document.getElementById("rematchStatus").textContent = "";
+    document.getElementById("endGameModal").classList.add("hidden");
   }
   renderRematchPanel();
 });
@@ -213,12 +216,38 @@ document.getElementById("rematchDeclineBtn").addEventListener("click", () => {
   gameSocket.emit("rematch-response", { roomId, accept: false });
 });
 
-document.getElementById("playAgainBtn").addEventListener("click", () => {
+function playAgainVsBot() {
   // sessionStorage's playerName/playerColor/vsBot/botDifficulty are already
   // correct for this session (unchanged) — a "new" bot game is just a fresh
   // room id, same bootstrap frontend/js/lobby.js's playBotBtn uses.
   const newRoomId = `bot-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
   window.location.href = `game.html?room=${newRoomId}`;
+}
+
+document.getElementById("playAgainBtn").addEventListener("click", playAgainVsBot);
+
+// End-of-game modal (frontend#8) — pops up once per game-over, same pattern
+// as showPromotionPicker()'s one-shot modal. Its Rematch button just
+// triggers whichever flow the standalone buttons above already provide
+// (bot replay, or a human rematch request); the ongoing offer/accept/
+// decline state itself is still shown via #rematchPanel underneath once
+// this modal is dismissed, not duplicated inside the modal.
+function showEndGameModal(text) {
+  const isPlayer = myColor === "white" || myColor === "black";
+  document.getElementById("endGameText").textContent = text;
+  const rematchBtn = document.getElementById("endGameRematchBtn");
+  rematchBtn.classList.toggle("hidden", !isPlayer);
+  document.getElementById("endGameModal").classList.remove("hidden");
+}
+
+document.getElementById("endGameRematchBtn").addEventListener("click", () => {
+  document.getElementById("endGameModal").classList.add("hidden");
+  if (vsBot) playAgainVsBot();
+  else gameSocket.emit("rematch-request", { roomId });
+});
+
+document.getElementById("endGameCloseBtn").addEventListener("click", () => {
+  document.getElementById("endGameModal").classList.add("hidden");
 });
 
 function applyAnalysis({ white_win_pct, black_win_pct }) {
