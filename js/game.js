@@ -56,6 +56,14 @@ let gameOver = false;
 // in-progress game" (no move sound for moves already on the board) from a
 // genuinely new move landing.
 let prevMoveCount = null;
+// Win-probability swing per move (frontend#9): moveIndex -> rounded delta
+// (positive = swung toward white) since the previous analysis-update.
+// Frontend-only, not persisted — analysis-service's payload carries no move
+// index, so each swing is attached to whichever move this client's own
+// prevMoveCount says was just played when the update lands (recordMoveSwing).
+const moveSwings = new Map();
+let lastWinPctForSwing = 50; // baseline before any moves/analysis have landed
+let lastRenderedMoves = []; // so recordMoveSwing can re-render without a fresh game-state
 // "Highlight pieces on danger" setting (frontend#7) — client-side only,
 // persisted in localStorage, read once at load. Gates the in-check king
 // highlight in renderBoard().
@@ -96,7 +104,13 @@ gameSocket.emit("join-room", { roomId, color: myColor, name: playerName, vsBot, 
 fetch(`/api/analysis/${roomId}/analysis`)
   .then((res) => (res.ok ? res.json() : null))
   .then((data) => {
-    if (data) applyAnalysis(data);
+    if (data) {
+      applyAnalysis(data);
+      // Seed the swing baseline (but don't attach a badge to any move) so a
+      // rejoining player's first real analysis-update doesn't compute a
+      // misleading delta against the 50% default.
+      lastWinPctForSwing = data.white_win_pct;
+    }
   })
   .catch((err) => console.error("initial analysis fetch failed", err));
 
@@ -257,7 +271,21 @@ function applyAnalysis({ white_win_pct, black_win_pct }) {
   document.getElementById("blackProb").textContent = `Black ${black_win_pct}%`;
 }
 
-gameSocket.on("analysis-update", applyAnalysis);
+gameSocket.on("analysis-update", (data) => {
+  applyAnalysis(data);
+  recordMoveSwing(data.white_win_pct);
+});
+
+// Attaches this update's win% swing to whichever move was on the board when
+// it landed, inferred from this client's own last-known move count — the
+// analysis-update payload itself carries no move index to key off of.
+function recordMoveSwing(newWhitePct) {
+  if (prevMoveCount) {
+    moveSwings.set(prevMoveCount - 1, Math.round(newWhitePct - lastWinPctForSwing));
+  }
+  lastWinPctForSwing = newWhitePct;
+  renderMoveLog(lastRenderedMoves);
+}
 
 // Which color renders in the bottom ("self") vs. top ("opponent") player bar
 // — the board already flips per-viewer (see `flipped` above), so which side
@@ -506,6 +534,7 @@ resignBtn.addEventListener("click", () => {
 });
 
 function renderMoveLog(moves) {
+  lastRenderedMoves = moves;
   const list = document.getElementById("moveLog");
   list.innerHTML = "";
   for (let i = 0; i < moves.length; i += 2) {
@@ -518,14 +547,31 @@ function renderMoveLog(moves) {
 
     const white = document.createElement("span");
     white.textContent = moves[i] || "";
+    appendSwingBadge(white, i);
 
     const black = document.createElement("span");
     black.textContent = moves[i + 1] || "";
+    appendSwingBadge(black, i + 1);
 
     row.append(num, white, black);
     list.appendChild(row);
   }
   list.scrollTop = list.scrollHeight;
+}
+
+// Small +/- badge next to a move showing the win-probability swing (positive
+// = toward white) analysis-service reported once this move landed. Skipped
+// when there's no move in this cell or no swing was ever recorded for it
+// (frontend#9 — frontend-only, not persisted, so a rejoining player's
+// earlier moves just won't have one).
+function appendSwingBadge(cell, moveIndex) {
+  if (!cell.textContent) return;
+  const delta = moveSwings.get(moveIndex);
+  if (delta === undefined) return;
+  const badge = document.createElement("span");
+  badge.className = `move-swing ${delta > 0 ? "swing-white" : delta < 0 ? "swing-black" : ""}`;
+  badge.textContent = ` ${delta > 0 ? "+" : ""}${delta}`;
+  cell.appendChild(badge);
 }
 
 // --- Sound effects (Web Audio API tones — no audio assets to ship/license) ---
