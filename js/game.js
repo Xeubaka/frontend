@@ -91,9 +91,66 @@ let roomClosed = false;
 
 renderCoordLabels();
 
-// game-service socket. Path matches the nginx strip-prefix rule.
-const gameSocket = io("/", { path: "/socket/game/socket.io/" });
+// One native WebSocket to the room's Durable Object, carrying both the game
+// and the chat. Socket.IO is gone: the server is a Cloudflare Worker, which
+// speaks plain WebSocket and has no Socket.IO handshake to answer.
+//
+// The shim below keeps socket.io's emit/on shape, because that's the whole
+// difference — every frame is {type, ...payload} on the wire, so the rest of
+// this file (and game-service's own event names) is untouched.
+const socketHandlers = new Map();
+let socket = null;
+let joinFrame = null; // replayed on every (re)connect, never queued
+let pendingFrames = [];
+
+function openSocket() {
+  const query = new URLSearchParams({ room: roomId, color: myColor, name: playerName });
+  const scheme = location.protocol === "https:" ? "wss:" : "ws:";
+  socket = new WebSocket(`${scheme}//${location.host}/socket/game/?${query}`);
+
+  socket.onopen = () => {
+    if (joinFrame) socket.send(joinFrame);
+    const queued = pendingFrames;
+    pendingFrames = [];
+    queued.forEach((frame) => socket.send(frame));
+  };
+
+  socket.onmessage = (event) => {
+    const { type, ...payload } = JSON.parse(event.data);
+    const handler = socketHandlers.get(type);
+    if (handler) handler(payload);
+  };
+
+  // socket.io reconnected by itself; a plain WebSocket doesn't. Without this
+  // a sleeping laptop or a redeployed Worker would silently end the game.
+  // ponytail: flat 1s retry, no backoff cap — add one if a hard-down server
+  // ever turns this into a hot loop worth caring about.
+  socket.onclose = () => setTimeout(openSocket, 1000);
+}
+
+const gameSocket = {
+  emit(type, payload = {}) {
+    const frame = JSON.stringify({ type, ...payload });
+    if (type === "join-room") joinFrame = frame;
+    if (socket && socket.readyState === WebSocket.OPEN) socket.send(frame);
+    else if (type !== "join-room") pendingFrames.push(frame); // join is replayed on open
+  },
+  on(type, handler) {
+    socketHandlers.set(type, handler);
+  }
+};
+
+openSocket();
 gameSocket.emit("join-room", { roomId, color: myColor, name: playerName, vsBot, difficulty: botDifficulty, timeControlMs });
+
+// Stockfish can't run inside a Workers isolate, so the serverless deployment
+// has no bot to play against — say so rather than leaving the board waiting
+// for a move that will never come. Bot games still work on docker-compose.
+gameSocket.on("bot-unavailable", () => {
+  document.getElementById("status").textContent =
+    "Bot games aren't available on this deployment — create a room and invite someone instead.";
+  gameOver = true;
+});
 
 // Fetch whatever analysis already exists for this room (e.g. rejoining a
 // game already in progress, or the page loading after moves were already
@@ -592,18 +649,20 @@ const playMoveSound = (isCapture) => playTone(isCapture ? 330 : 440, isCapture ?
 const playGameEndSound = () => playTone(220, 0.4, "sawtooth");
 const playIllegalSound = () => playTone(140, 0.15, "square");
 
-// --- Chat (separate service, separate socket connection) ---
-// Bot games never touch chat-service — there's no second player to talk to,
-// and the room id was never registered anywhere chat-service would know it.
+// --- Chat (same room, same socket) ---
+// Chat rides the game socket now: the room's Durable Object holds the message
+// log alongside the game, so there's no second service and no second
+// connection to open. Bot games have nobody to talk to.
 if (vsBot) {
   document.querySelector(".chat-block").classList.add("hidden");
 }
-const chatSocket = vsBot ? null : io("/", { path: "/socket/chat/socket.io/" });
-if (chatSocket) {
-  chatSocket.emit("join-room", { roomId, name: playerName });
-  chatSocket.on("chat-history", (messages) => messages.forEach(renderChatMessage));
-  chatSocket.on("chat-message", renderChatMessage);
-}
+// History arrives on every (re)connect, so clear first — otherwise a
+// reconnect would render every message twice.
+gameSocket.on("chat-history", ({ messages }) => {
+  document.getElementById("chatMessages").innerHTML = "";
+  messages.forEach(renderChatMessage);
+});
+gameSocket.on("chat-message", renderChatMessage);
 
 function renderChatMessage({ name, text, ts }) {
   const el = document.createElement("div");
@@ -622,6 +681,6 @@ document.getElementById("chatInput").addEventListener("keydown", (e) => {
 function sendChat() {
   const input = document.getElementById("chatInput");
   if (!input.value.trim()) return;
-  chatSocket.emit("chat-message", { roomId, text: input.value.trim() });
+  gameSocket.emit("chat-message", { roomId, text: input.value.trim() });
   input.value = "";
 }
